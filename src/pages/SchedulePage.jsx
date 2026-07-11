@@ -1,6 +1,6 @@
 import {useState} from "react";
 import {Form, Input, InputNumber, Table, Popconfirm, message} from "antd";
-import { StudentAPI } from "../api/api";
+import {ScheduleAPI} from "../api/schedule";
 export default function SchedulePage() {
     const [form] = Form.useForm();
     const [schedules, setSchedules] = useState([]);
@@ -10,19 +10,19 @@ export default function SchedulePage() {
         if (!id) return;
         setLoading(true);
         try {
-            const response = await ScheduleAPI.getByClass(id);
-            setSchedules(response.data);
+            const res = await ScheduleAPI.getByClass(id);
+            setSchedules(res.data);
         } catch (err) {
             message.error("Error");
         } finally {
             setLoading(false);
         }
     };
-    const handleSubmit = async (values) => {
+    const handleSubmit = async (v) => {
         try {
-            await ScheduleAPI.add(values);
+            await ScheduleAPI.add(v);
             form.resetFields();
-            if (values.classId == searchClassId) fetchSchedule(searchClassId);
+            if (v.classId == searchClassId) fetchSchedule(searchClassId);
         } catch (err) {
             message.error("Error");
         }
@@ -54,7 +54,7 @@ export default function SchedulePage() {
                 <input value={searchClassId} onChange={(e) => setSearchClassId(e.target.value)}/>
                 <button onClick={() => fetchSchedule(searchClassId)}>Search</button>
                 {schedules.length > 0 && (<Popconfirm title="Delete all?" onConfirm={handleDeleteAll}><button>Delete All</button></Popconfirm>)}
-                <Table columns={columns} dataSource={schedules} rowKey={(record) => `${record.day}-${record.slot}`} loading={loading}/>
+                <Table columns={columns} dataSource={schedules} rowKey={(r) => `${r.day}-${r.slot}`} loading={loading}/>
             </div>
         </div>
     );
