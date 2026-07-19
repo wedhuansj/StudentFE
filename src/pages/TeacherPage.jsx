@@ -1,68 +1,109 @@
-import {useState, useEffect} from "react";
-import {Form, Input, InputNumber, Table, Popconfirm, message} from "antd";
-import {TeacherAPI} from "../api/teacher";
+import { useState, useEffect, useRef } from "react";
+import { Form, Input, InputNumber, Table, Popconfirm, Button, Modal, message } from "antd";
+import { SearchOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import { TeacherAPI } from "../api/teacher";
+import { useFetch } from "../api/useFetch";
 export default function TeacherPage() {
-    const [form] = Form.useForm();
-    const [teachers, setTeachers] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [search, setSearch] = useState("");
-    const fetchTeachers = async () => {
-        setLoading(true);
-        try {
-            const res = await TeacherAPI.getAll();
-            setTeachers(res.data);
-        } catch (err) { 
-            message.error("Error");
-        } finally {
-            setLoading(false);
-        }
-    };
-    useEffect(() => {
-        fetchTeachers();
-    }, []);
-    const handleSubmit = async (v) => {
-        try {
-            await TeacherAPI.add(v);
-            form.resetFields();
-            fetchTeachers();
-        } catch (err) {
-            message.error("Error");
-        }
-    };
-    const handleDelete = async (id) => {
-        try {
-            await TeacherAPI.delete(id);
-            fetchTeachers();
-        } catch (err) {
-            message.error("Error");
-        }
-    };
-    useEffect(() => {
-        console.log("key search đã thay đổi, refresh lại dữ liệu");
-    }, [search]);
-    const handleKeyDown = (e) => {
-        setSearch(e.target.value);  
-    };
-    const columns = [{title: "ID", dataIndex: "id", key: "id"}, {title: "Name", dataIndex: "name", key: "name"}, {title: "Actions", key: "actions", render: (_, r) => (<Popconfirm title="Delete?" onConfirm={() => handleDelete(r.id)}><button className="deleteButton">Delete</button></Popconfirm>)}];
-    return (
-        <div className="container">
-            <div className="formColumn">
-                <label>searchbyid</label>
-                <input type="text" value={search} onChange={handleKeyDown} placeholder="Press Enter to log or Escape to clear"/>
-                <Form form={form} layout="vertical" onFinish={handleSubmit}>
-                    <Form.Item name="id" label="ID" rules={[{required: true}]}><Input/></Form.Item>
-                    <Form.Item name="name" label="Name" rules={[{required: true}]}><Input/></Form.Item>
-                    <Form.Item name="age" label="Age" rules={[{required: true, type: "number", min: 1}]}><InputNumber/></Form.Item>
-                    <Form.Item name="gender" label="Gender" rules={[{required: true}]}><Input/></Form.Item>
-                    <Form.Item name="address" label="Address" rules={[{required: true}]}><Input/></Form.Item>
-                    <Form.Item name="salary" label="Salary" rules={[{required: true, type: "number", min: 0}]}><InputNumber/></Form.Item>
-                    <Form.Item name="exp" label="Experience" rules={[{required: true, type: "number", min: 0}]}><InputNumber/></Form.Item>
-                    <button type="submit">Save</button>
-                </Form>
-            </div>
-            <div className="tableColumn">
-                <Table columns={columns} dataSource={teachers} rowKey="id" loading={loading}/>
-            </div>
-        </div>
-    );
+  const [form] = Form.useForm();
+  const [search, setSearch] = useState("");
+  const [modalVisible, setModalVisible] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+  const searchInputRef = useRef(null);
+  const { data, loading, refetch } = useFetch(
+    `http://localhost:8081/api/teachers?page=${currentPage - 1}&size=${pageSize}&search=${encodeURIComponent(search)}`
+  );
+  useEffect(() => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, []);
+  const teachers = data?.content || [];
+  const totalElements = data?.totalElements || 0;
+  const handleSubmit = async (v) => {
+    try {
+      await TeacherAPI.add(v);
+      message.success("Thêm giáo viên thành công!");
+      form.resetFields();
+      setModalVisible(false);
+      refetch();
+    } catch (err) {
+      message.error(err.message || "Lỗi không thể lưu giáo viên mới!");
+    }
+  };
+  const handleDelete = async (id) => {
+    try {
+      await TeacherAPI.delete(id);
+      message.success("Xóa giáo viên thành công!");
+      refetch();
+    } catch (err) {
+      message.error(err.message || "Lỗi, không thể xóa giáo viên được chỉ định!");
+    }
+  };
+  const columns = [
+    { title: "Mã", dataIndex: "id", key: "id" },
+    { title: "Tên giáo viên", dataIndex: "name", key: "name" },
+    { title: "Tuổi", dataIndex: "age", key: "age" },
+    { title: "Địa chỉ", dataIndex: "address", key: "address" },
+    { title: "Kinh nghiệm", dataIndex: "exp", key: "exp", render: (v) => `${v} năm` },
+    {
+      title: "Thao tác",
+      key: "actions",
+      render: (_, r) => (
+        <Popconfirm title="Bạn có chắc chắn muốn xóa?" onConfirm={() => handleDelete(r.id)} okText="Xóa" cancelText="Hủy">
+          <Button danger size="small" icon={<DeleteOutlined />}>Xóa</Button>
+        </Popconfirm>
+      )
+    }
+  ];
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px" }}>
+        <Input
+          ref={searchInputRef}
+          style={{ width: "320px" }}
+          prefix={<SearchOutlined />}
+          placeholder="Tìm kiếm theo tên giáo viên"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setCurrentPage(1);
+          }}
+        />
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>
+          Thêm giáo viên
+        </Button>
+      </div>
+      <Table
+        columns={columns}
+        dataSource={teachers}
+        rowKey="id"
+        loading={loading}
+        pagination={{
+          current: currentPage,
+          pageSize: pageSize,
+          total: totalElements,
+          onChange: (p) => setCurrentPage(p)
+        }}
+      />
+      <Modal
+        title="Thêm giáo viên mới"
+        open={modalVisible}
+        onCancel={() => setModalVisible(false)}
+        onOk={() => form.submit()}
+        okText="Lưu lại"
+        cancelText="Hủy"
+      >
+        <Form form={form} layout="vertical" onFinish={handleSubmit}>
+          <Form.Item name="id" label="Mã giáo viên" rules={[{ required: true, message: "Mã giáo viên không thể rỗng!" }]}><Input /></Form.Item>
+          <Form.Item name="name" label="Họ tên" rules={[{ required: true, message: "Họ tên không được để trống!" }]}><Input /></Form.Item>
+          <Form.Item name="age" label="Tuổi" rules={[{ required: true, type: "number", min: 18, message: "Tuổi giáo viên phải từ 18 tuổi trở lên!" }]}><InputNumber className="inputFullWidth" /></Form.Item>
+          <Form.Item name="gender" label="Giới tính" rules={[{ required: true, message: "Vui lòng nhập giới tính!" }]}><Input /></Form.Item>
+          <Form.Item name="address" label="Địa chỉ" rules={[{ required: true, message: "Vui lòng nhập địa chỉ!" }]}><Input /></Form.Item>
+          <Form.Item name="salary" label="Lương" rules={[{ required: true, type: "number", min: 0, message: "Lương tối thiểu là 0!" }]}><InputNumber className="inputFullWidth" /></Form.Item>
+          <Form.Item name="exp" label="Kinh nghiệm (năm)" rules={[{ required: true, type: "number", min: 0, message: "Kinh nghiệm tối thiểu là 0!" }]}><InputNumber className="inputFullWidth" /></Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  );
 }
